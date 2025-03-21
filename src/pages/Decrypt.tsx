@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Shield, Upload, Check, Download, AlertCircle } from "lucide-react";
+import { Shield, Upload, Check, Download, AlertCircle, FileDown } from "lucide-react";
 
 const Decrypt = () => {
   const { isAuthenticated } = useAuth();
@@ -18,6 +18,7 @@ const Decrypt = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -28,6 +29,7 @@ const Decrypt = () => {
       setFile(e.target.files[0]);
       setIsSuccess(false);
       setError(null);
+      setDecryptedFileUrl(null);
     }
   };
 
@@ -55,16 +57,28 @@ const Decrypt = () => {
     // Reset states
     setIsSuccess(false);
     setError(null);
+    setDecryptedFileUrl(null);
     
     // Simulate decryption process
     setIsProcessing(true);
     
-    // Simulate API call with a 50% chance of success (for demo purposes)
+    // Simulate API call with a 70% chance of success (for demo purposes)
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const randomSuccess = Math.random() > 0.3;
     
     if (randomSuccess) {
+      // In a real implementation, this would be the result of actual decryption
+      // For this demo, we'll create a blob with some content to simulate a decrypted file
+      const decryptedContent = new Blob(
+        [`This is a simulated decrypted content of ${file.name}`], 
+        { type: 'text/plain' }
+      );
+      
+      // Create a URL for the blob
+      const url = URL.createObjectURL(decryptedContent);
+      setDecryptedFileUrl(url);
+      
       setIsSuccess(true);
       toast({
         title: "Decryption successful",
@@ -83,6 +97,31 @@ const Decrypt = () => {
     setIsProcessing(false);
   };
 
+  const handleDownload = () => {
+    if (!decryptedFileUrl || !file) return;
+    
+    // Create an anchor element and set properties for download
+    const a = document.createElement('a');
+    a.href = decryptedFileUrl;
+    // Remove the .encrypted extension if it exists, or just use the filename
+    const originalName = file.name.endsWith('.encrypted') 
+      ? file.name.substring(0, file.name.length - 10) 
+      : file.name + '.decrypted';
+    a.download = originalName;
+    
+    // Append to body, click, and remove
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    
+    toast({
+      title: "Download started",
+      description: `${originalName} is being downloaded`,
+    });
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -96,6 +135,7 @@ const Decrypt = () => {
       setFile(e.dataTransfer.files[0]);
       setIsSuccess(false);
       setError(null);
+      setDecryptedFileUrl(null);
     }
   };
 
@@ -160,6 +200,7 @@ const Decrypt = () => {
                           setFile(null);
                           setIsSuccess(false);
                           setError(null);
+                          setDecryptedFileUrl(null);
                         }}
                       >
                         Change File
@@ -219,9 +260,9 @@ const Decrypt = () => {
                     )}
                   </Button>
                   
-                  {isSuccess && (
-                    <Button variant="outline">
-                      <Download className="mr-2 h-4 w-4" />
+                  {isSuccess && decryptedFileUrl && (
+                    <Button variant="outline" onClick={handleDownload}>
+                      <FileDown className="mr-2 h-4 w-4" />
                       Download
                     </Button>
                   )}

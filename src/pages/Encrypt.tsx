@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, Upload, Check, Info } from "lucide-react";
+import { Lock, Upload, Check, Info, Download, FileDown } from "lucide-react";
 
 const Encrypt = () => {
   const { isAuthenticated } = useAuth();
@@ -20,6 +20,7 @@ const Encrypt = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDone, setIsDone] = useState(false);
+  const [encryptedFileUrl, setEncryptedFileUrl] = useState<string | null>(null);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -29,6 +30,7 @@ const Encrypt = () => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setIsDone(false);
+      setEncryptedFileUrl(null);
     }
   };
 
@@ -59,6 +61,17 @@ const Encrypt = () => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
     
+    // In a real implementation, this would be the result of actual encryption
+    // For this demo, we'll create a blob with some content to simulate an encrypted file
+    const encryptedContent = new Blob(
+      [`This is a simulated encrypted version of ${file.name} using ${algorithm}`], 
+      { type: 'application/octet-stream' }
+    );
+    
+    // Create a URL for the blob
+    const url = URL.createObjectURL(encryptedContent);
+    setEncryptedFileUrl(url);
+    
     setIsProcessing(false);
     setIsDone(true);
     
@@ -66,6 +79,27 @@ const Encrypt = () => {
       title: "Encryption complete",
       description: `${file.name} has been successfully encrypted`,
       variant: "default",
+    });
+  };
+
+  const handleDownload = () => {
+    if (!encryptedFileUrl || !file) return;
+    
+    // Create an anchor element and set properties for download
+    const a = document.createElement('a');
+    a.href = encryptedFileUrl;
+    a.download = `${file.name}.encrypted`;
+    
+    // Append to body, click, and remove
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    
+    toast({
+      title: "Download started",
+      description: `${file.name}.encrypted is being downloaded`,
     });
   };
 
@@ -81,6 +115,7 @@ const Encrypt = () => {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0]);
       setIsDone(false);
+      setEncryptedFileUrl(null);
     }
   };
 
@@ -146,6 +181,7 @@ const Encrypt = () => {
                           onClick={() => {
                             setFile(null);
                             setIsDone(false);
+                            setEncryptedFileUrl(null);
                           }}
                         >
                           Change File
@@ -191,28 +227,37 @@ const Encrypt = () => {
                     </div>
                   </div>
                   
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={!file || !password || isProcessing || isDone}
-                  >
-                    {isProcessing ? (
-                      <span className="flex items-center">
-                        <span className="mr-2">Encrypting...</span>
-                        <span className="animate-spin h-4 w-4 border-2 border-primary border-opacity-50 border-t-transparent rounded-full" />
-                      </span>
-                    ) : isDone ? (
-                      <span className="flex items-center">
-                        <Check className="mr-2 h-4 w-4" />
-                        Encrypted Successfully
-                      </span>
-                    ) : (
-                      <span className="flex items-center">
-                        <Lock className="mr-2 h-4 w-4" />
-                        Encrypt File
-                      </span>
+                  <div className="flex space-x-2">
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={!file || !password || isProcessing}
+                    >
+                      {isProcessing ? (
+                        <span className="flex items-center">
+                          <span className="mr-2">Encrypting...</span>
+                          <span className="animate-spin h-4 w-4 border-2 border-primary border-opacity-50 border-t-transparent rounded-full" />
+                        </span>
+                      ) : isDone ? (
+                        <span className="flex items-center">
+                          <Check className="mr-2 h-4 w-4" />
+                          Encrypted Successfully
+                        </span>
+                      ) : (
+                        <span className="flex items-center">
+                          <Lock className="mr-2 h-4 w-4" />
+                          Encrypt File
+                        </span>
+                      )}
+                    </Button>
+                    
+                    {isDone && encryptedFileUrl && (
+                      <Button onClick={handleDownload} variant="outline">
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>

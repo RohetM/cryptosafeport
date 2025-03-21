@@ -56,13 +56,13 @@ interface LogEntry {
 // Generate mock log data
 const generateMockLogs = (count: number): LogEntry[] => {
   const actions = [
-    { action: "File encrypted", type: "encryption" },
-    { action: "File decrypted", type: "decryption" },
-    { action: "Threat scan completed", type: "scan" },
-    { action: "User login", type: "user" },
-    { action: "User logout", type: "user" },
-    { action: "User registered", type: "user" },
-    { action: "System update", type: "system" },
+    { action: "File encrypted", type: "encryption" as const },
+    { action: "File decrypted", type: "decryption" as const },
+    { action: "Threat scan completed", type: "scan" as const },
+    { action: "User login", type: "user" as const },
+    { action: "User logout", type: "user" as const },
+    { action: "User registered", type: "user" as const },
+    { action: "System update", type: "system" as const },
   ];
   
   const users = ["admin", "john.doe", "jane.smith", "guest.user"];

@@ -19,6 +19,7 @@ const Decrypt = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
+  const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -30,6 +31,59 @@ const Decrypt = () => {
       setIsSuccess(false);
       setError(null);
       setDecryptedFileUrl(null);
+    }
+  };
+
+  // Function to decrypt the file
+  const decryptFile = async (encryptedData: ArrayBuffer, password: string): Promise<ArrayBuffer> => {
+    try {
+      // Extract salt, iv and encrypted data
+      const encryptedArray = new Uint8Array(encryptedData);
+      const salt = encryptedArray.slice(0, 16);
+      const iv = encryptedArray.slice(16, 16 + 12);
+      const data = encryptedArray.slice(16 + 12);
+      
+      // Convert password to key material
+      const enc = new TextEncoder();
+      const passwordBuffer = enc.encode(password);
+      
+      // Import key material
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        passwordBuffer,
+        { name: "PBKDF2" },
+        false,
+        ["deriveBits", "deriveKey"]
+      );
+      
+      // Derive the key using PBKDF2
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt,
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+      
+      // Decrypt the data
+      const decryptedData = await crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv
+        },
+        key,
+        data
+      );
+      
+      return decryptedData;
+    } catch (error) {
+      console.error("Decryption error:", error);
+      throw new Error("Failed to decrypt the file. The password may be incorrect or the file may be corrupted.");
     }
   };
 
@@ -59,55 +113,57 @@ const Decrypt = () => {
     setError(null);
     setDecryptedFileUrl(null);
     
-    // Simulate decryption process
+    // Start decryption process
     setIsProcessing(true);
     
-    // Simulate API call with a 70% chance of success (for demo purposes)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const randomSuccess = Math.random() > 0.3;
-    
-    if (randomSuccess) {
-      // In a real implementation, this would be the result of actual decryption
-      // For this demo, we'll create a blob with some content to simulate a decrypted file
-      const decryptedContent = new Blob(
-        [`This is a simulated decrypted content of ${file.name}`], 
-        { type: 'text/plain' }
-      );
+    try {
+      // Read the file
+      const fileBuffer = await file.arrayBuffer();
+      
+      // Decrypt the file
+      const decryptedData = await decryptFile(fileBuffer, password);
+      
+      // Create a Blob from the decrypted data
+      const decryptedBlob = new Blob([decryptedData]);
       
       // Create a URL for the blob
-      const url = URL.createObjectURL(decryptedContent);
+      const url = URL.createObjectURL(decryptedBlob);
       setDecryptedFileUrl(url);
       
+      // Set original file name (remove .encrypted if present)
+      const origName = file.name.endsWith('.encrypted') 
+        ? file.name.substring(0, file.name.length - 10) 
+        : file.name + '.decrypted';
+      setOriginalFileName(origName);
+      
       setIsSuccess(true);
+      setIsProcessing(false);
+      
       toast({
         title: "Decryption successful",
         description: `${file.name} has been successfully decrypted`,
         variant: "default",
       });
-    } else {
-      setError("The password is incorrect or the file is not a valid encrypted file.");
+    } catch (error) {
+      console.error("Decryption error:", error);
+      setError("Failed to decrypt the file. The password may be incorrect or the file may be corrupted.");
+      setIsProcessing(false);
+      
       toast({
         title: "Decryption failed",
         description: "Incorrect password or invalid file format",
         variant: "destructive",
       });
     }
-    
-    setIsProcessing(false);
   };
 
   const handleDownload = () => {
-    if (!decryptedFileUrl || !file) return;
+    if (!decryptedFileUrl || !originalFileName) return;
     
     // Create an anchor element and set properties for download
     const a = document.createElement('a');
     a.href = decryptedFileUrl;
-    // Remove the .encrypted extension if it exists, or just use the filename
-    const originalName = file.name.endsWith('.encrypted') 
-      ? file.name.substring(0, file.name.length - 10) 
-      : file.name + '.decrypted';
-    a.download = originalName;
+    a.download = originalFileName;
     
     // Append to body, click, and remove
     document.body.appendChild(a);
@@ -118,7 +174,7 @@ const Decrypt = () => {
     
     toast({
       title: "Download started",
-      description: `${originalName} is being downloaded`,
+      description: `${originalFileName} is being downloaded`,
     });
   };
 

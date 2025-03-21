@@ -34,6 +34,60 @@ const Encrypt = () => {
     }
   };
 
+  // Function to encrypt the file using Web Crypto API
+  const encryptFile = async (fileData: ArrayBuffer, password: string): Promise<ArrayBuffer> => {
+    // Convert password to key using PBKDF2
+    const enc = new TextEncoder();
+    const passwordBuffer = enc.encode(password);
+    
+    // Generate a random salt
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    
+    // Derive key using PBKDF2
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      passwordBuffer,
+      { name: "PBKDF2" },
+      false,
+      ["deriveBits", "deriveKey"]
+    );
+    
+    // Set up AES-GCM parameters
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256"
+      },
+      keyMaterial,
+      { name: "AES-GCM", length: algorithm === "aes-256" ? 256 : algorithm === "aes-192" ? 192 : 128 },
+      false,
+      ["encrypt"]
+    );
+    
+    // Generate IV (Initialization Vector)
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    
+    // Encrypt the file
+    const encryptedData = await crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv
+      },
+      key,
+      fileData
+    );
+    
+    // Combine salt + iv + encrypted data for storage
+    const result = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
+    result.set(salt, 0);
+    result.set(iv, salt.length);
+    result.set(new Uint8Array(encryptedData), salt.length + iv.length);
+    
+    return result.buffer;
+  };
+
   const handleEncrypt = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -55,31 +109,40 @@ const Encrypt = () => {
       return;
     }
     
-    // Simulate encryption process
+    // Begin encryption process
     setIsProcessing(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // In a real implementation, this would be the result of actual encryption
-    // For this demo, we'll create a blob with some content to simulate an encrypted file
-    const encryptedContent = new Blob(
-      [`This is a simulated encrypted version of ${file.name} using ${algorithm}`], 
-      { type: 'application/octet-stream' }
-    );
-    
-    // Create a URL for the blob
-    const url = URL.createObjectURL(encryptedContent);
-    setEncryptedFileUrl(url);
-    
-    setIsProcessing(false);
-    setIsDone(true);
-    
-    toast({
-      title: "Encryption complete",
-      description: `${file.name} has been successfully encrypted`,
-      variant: "default",
-    });
+    try {
+      // Read the file
+      const fileBuffer = await file.arrayBuffer();
+      
+      // Encrypt the file
+      const encryptedData = await encryptFile(fileBuffer, password);
+      
+      // Create a Blob from the encrypted data
+      const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
+      
+      // Create a URL for the blob
+      const url = URL.createObjectURL(encryptedBlob);
+      setEncryptedFileUrl(url);
+      
+      setIsProcessing(false);
+      setIsDone(true);
+      
+      toast({
+        title: "Encryption complete",
+        description: `${file.name} has been successfully encrypted`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Encryption error:", error);
+      toast({
+        title: "Encryption failed",
+        description: "An error occurred during encryption",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
   };
 
   const handleDownload = () => {

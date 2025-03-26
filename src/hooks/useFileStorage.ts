@@ -152,15 +152,49 @@ export const useFileStorage = () => {
     }
   };
   
-  // For compatibility with Storage.tsx
+  // For compatibility with Storage.tsx and Decrypt/Encrypt pages
   const encryptedFiles = getEncryptedFiles();
   const decryptedFiles = getDecryptedFiles();
   const deleteEncryptedFile = deleteFile;
   const deleteDecryptedFile = deleteFile;
-  const addEncryptedFile = (file: Omit<FileInfo, 'id' | 'createdAt'>) => 
-    saveFile({ ...file, encrypted: true });
-  const addDecryptedFile = (file: Omit<FileInfo, 'id' | 'createdAt'>) => 
-    saveFile({ ...file, encrypted: false });
+  
+  // Updated function signatures to match how they're being used in Encrypt.tsx
+  const addEncryptedFile = (
+    file: File | null, 
+    dataUrl: string, 
+    algorithm: string
+  ) => {
+    if (!file) return Promise.reject(new Error('No file provided'));
+    
+    return saveFile({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      data: dataUrl,
+      encrypted: true,
+      fileName: `${file.name}.encrypted`,
+      algorithm,
+      originalFileName: file.name
+    });
+  };
+  
+  // Updated function signature to match how it's being used in Decrypt.tsx
+  const addDecryptedFile = (
+    originalFileName: string, 
+    encryptedFileName: string, 
+    dataUrl: string, 
+    fileSize: number
+  ) => {
+    return saveFile({
+      name: originalFileName,
+      fileName: originalFileName,
+      originalFileName: encryptedFileName,
+      size: fileSize,
+      type: 'application/octet-stream',
+      data: dataUrl,
+      encrypted: false
+    });
+  };
 
   return {
     files,

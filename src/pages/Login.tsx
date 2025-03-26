@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Lock, Mail, Shield, ArrowRight } from "lucide-react";
+import { Lock, Mail, Shield, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
   const { login, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
@@ -29,10 +31,11 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError("");
     
     if (!email || !password) {
       toast({
-        title: "Error",
+        title: "Validation Error",
         description: "Please fill in all fields",
         variant: "destructive",
       });
@@ -51,6 +54,7 @@ const Login = () => {
     setIsLoading(false);
     
     if (!success) {
+      setAuthError("Invalid email or password. Please check your credentials and try again.");
       toast({
         title: "Authentication failed",
         description: "Invalid email or password",
@@ -81,6 +85,14 @@ const Login = () => {
         </div>
         
         <div className="glass card-glow rounded-xl p-8 animate-fade-in">
+          {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Authentication Error</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">Email</Label>
@@ -159,6 +171,11 @@ const Login = () => {
               </Link>
             </div>
           </form>
+        </div>
+        
+        <div className="mt-4 text-xs text-center text-muted-foreground">
+          <p>This application uses secure and isolated user accounts.</p>
+          <p>Each account requires valid credentials to access its data.</p>
         </div>
       </div>
     </div>

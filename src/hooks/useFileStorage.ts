@@ -1,189 +1,145 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  openDatabase,
-  getAllItems,
-  addItem,
-  deleteItem
-} from '@/utils/database';
+import { useState, useEffect } from 'react';
+import { openDB, IDBPDatabase } from 'idb';
+import { useAuth } from '@/context/AuthContext';
 
-const ENCRYPTED_STORE = 'encryptedFiles';
-const DECRYPTED_STORE = 'decryptedFiles';
+const DB_NAME = 'secureFilesDB';
+const DB_VERSION = 1;
+const FILES_STORE = 'files';
 
-export interface StorageItem {
+// Interface for stored file info
+export interface FileInfo {
   id: string;
-  fileName: string;
-  data: string; // base64 encoded data
+  name: string;
   size: number;
-  timestamp: string;
-  type: 'encrypted' | 'decrypted';
-  algorithm?: string;
-  originalFileName?: string;
+  type: string;
+  data: string; // base64 encoded file data
+  encrypted: boolean;
+  createdAt: number;
 }
 
 export const useFileStorage = () => {
-  const [encryptedFiles, setEncryptedFiles] = useState<StorageItem[]>([]);
-  const [decryptedFiles, setDecryptedFiles] = useState<StorageItem[]>([]);
+  const [files, setFiles] = useState<FileInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id || localStorage.getItem('currentUserId') || 'anonymous';
+  
+  // Initialize the database
+  const initDB = async (): Promise<IDBPDatabase> => {
+    try {
+      return await openDB(DB_NAME, DB_VERSION, {
+        upgrade(db) {
+          // Create a store for files if it doesn't exist
+          if (!db.objectStoreNames.contains(FILES_STORE)) {
+            const store = db.createObjectStore(FILES_STORE, { keyPath: 'id' });
+            store.createIndex('userId', 'userId', { unique: false });
+            store.createIndex('encrypted', 'encrypted', { unique: false });
+          }
+        },
+      });
+    } catch (err) {
+      console.error('Error initializing IndexedDB:', err);
+      throw err;
+    }
+  };
 
-  // Load files from IndexedDB on initial load
+  // Load files on component mount
   useEffect(() => {
+    let mounted = true;
+
     const loadFiles = async () => {
       try {
         setIsLoading(true);
-        
-        // Initialize IndexedDB if needed
-        await openDatabase();
-        
-        // Load both encrypted and decrypted files
-        const storedEncrypted = await getAllItems<StorageItem>(ENCRYPTED_STORE);
-        const storedDecrypted = await getAllItems<StorageItem>(DECRYPTED_STORE);
-        
-        setEncryptedFiles(storedEncrypted.sort((a, b) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        ));
-        
-        setDecryptedFiles(storedDecrypted.sort((a, b) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        ));
-        
         setError(null);
-      } catch (err) {
-        console.error('Error loading files from database:', err);
-        setError(err instanceof Error ? err : new Error('Failed to load files'));
         
-        // Fallback to localStorage if IndexedDB fails
-        tryFallbackToLocalStorage();
-      } finally {
-        setIsLoading(false);
+        const db = await initDB();
+        const tx = db.transaction(FILES_STORE, 'readonly');
+        const store = tx.objectStore(FILES_STORE);
+        const userIdIndex = store.index('userId');
+        
+        // Query files for the current user
+        const userFiles = await userIdIndex.getAll(userId);
+        
+        if (mounted) {
+          setFiles(userFiles);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Error loading files:', err);
+        if (mounted) {
+          setError(err instanceof Error ? err : new Error('Failed to load files'));
+          setIsLoading(false);
+        }
       }
     };
-    
+
     loadFiles();
-  }, []);
 
-  // Fallback to localStorage if IndexedDB fails
-  const tryFallbackToLocalStorage = () => {
+    return () => {
+      mounted = false;
+    };
+  }, [userId]);
+
+  // Save a file to storage
+  const saveFile = async (fileInfo: Omit<FileInfo, 'id' | 'createdAt'>): Promise<FileInfo> => {
     try {
-      const storedEncrypted = localStorage.getItem('cryptoSafeport_encryptedFiles');
-      const storedDecrypted = localStorage.getItem('cryptoSafeport_decryptedFiles');
+      const db = await initDB();
+      const newFile: FileInfo = {
+        ...fileInfo,
+        id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        createdAt: Date.now(),
+      };
       
-      if (storedEncrypted) {
-        setEncryptedFiles(JSON.parse(storedEncrypted));
-      }
+      // Add user ID to the file
+      const fileWithUserId = {
+        ...newFile,
+        userId, // Link file to current user
+      };
       
-      if (storedDecrypted) {
-        setDecryptedFiles(JSON.parse(storedDecrypted));
-      }
-    } catch (e) {
-      console.error('Error parsing files from localStorage:', e);
+      const tx = db.transaction(FILES_STORE, 'readwrite');
+      await tx.objectStore(FILES_STORE).add(fileWithUserId);
+      await tx.done;
+      
+      // Update the files state
+      setFiles(prev => [...prev, newFile]);
+      
+      return newFile;
+    } catch (err) {
+      console.error('Error saving file:', err);
+      throw err instanceof Error ? err : new Error('Failed to save file');
     }
   };
 
-  // Add a new encrypted file
-  const addEncryptedFile = useCallback(async (file: File, dataUrl: string, algorithm: string = 'AES-256') => {
-    const newFile: StorageItem = {
-      id: crypto.randomUUID(),
-      fileName: `${file.name}.encrypted`,
-      data: dataUrl,
-      size: file.size,
-      timestamp: new Date().toISOString(),
-      type: 'encrypted',
-      algorithm
-    };
-    
+  // Delete a file from storage
+  const deleteFile = async (fileId: string): Promise<void> => {
     try {
-      await addItem(ENCRYPTED_STORE, newFile);
-      setEncryptedFiles(prev => [newFile, ...prev]);
-      return newFile.id;
-    } catch (err) {
-      console.error('Error adding encrypted file to database:', err);
+      const db = await initDB();
+      const tx = db.transaction(FILES_STORE, 'readwrite');
+      await tx.objectStore(FILES_STORE).delete(fileId);
+      await tx.done;
       
-      // Fallback to localStorage
-      const updatedFiles = [newFile, ...encryptedFiles];
-      localStorage.setItem('cryptoSafeport_encryptedFiles', JSON.stringify(updatedFiles));
-      setEncryptedFiles(updatedFiles);
-      return newFile.id;
-    }
-  }, [encryptedFiles]);
-
-  // Add a new decrypted file
-  const addDecryptedFile = useCallback(async (fileName: string, originalFileName: string, dataUrl: string, size: number) => {
-    const newFile: StorageItem = {
-      id: crypto.randomUUID(),
-      fileName: fileName,
-      originalFileName: originalFileName,
-      data: dataUrl,
-      size: size,
-      timestamp: new Date().toISOString(),
-      type: 'decrypted'
-    };
-    
-    try {
-      await addItem(DECRYPTED_STORE, newFile);
-      setDecryptedFiles(prev => [newFile, ...prev]);
-      return newFile.id;
+      // Update the files state
+      setFiles(prev => prev.filter(file => file.id !== fileId));
     } catch (err) {
-      console.error('Error adding decrypted file to database:', err);
-      
-      // Fallback to localStorage
-      const updatedFiles = [newFile, ...decryptedFiles];
-      localStorage.setItem('cryptoSafeport_decryptedFiles', JSON.stringify(updatedFiles));
-      setDecryptedFiles(updatedFiles);
-      return newFile.id;
+      console.error('Error deleting file:', err);
+      throw err instanceof Error ? err : new Error('Failed to delete file');
     }
-  }, [decryptedFiles]);
-
-  // Delete an encrypted file
-  const deleteEncryptedFile = useCallback(async (id: string) => {
-    try {
-      await deleteItem(ENCRYPTED_STORE, id);
-      setEncryptedFiles(prev => prev.filter(file => file.id !== id));
-    } catch (err) {
-      console.error('Error deleting encrypted file from database:', err);
-      
-      // Fallback to localStorage
-      const updatedFiles = encryptedFiles.filter(file => file.id !== id);
-      localStorage.setItem('cryptoSafeport_encryptedFiles', JSON.stringify(updatedFiles));
-      setEncryptedFiles(updatedFiles);
-    }
-  }, [encryptedFiles]);
-
-  // Delete a decrypted file
-  const deleteDecryptedFile = useCallback(async (id: string) => {
-    try {
-      await deleteItem(DECRYPTED_STORE, id);
-      setDecryptedFiles(prev => prev.filter(file => file.id !== id));
-    } catch (err) {
-      console.error('Error deleting decrypted file from database:', err);
-      
-      // Fallback to localStorage
-      const updatedFiles = decryptedFiles.filter(file => file.id !== id);
-      localStorage.setItem('cryptoSafeport_decryptedFiles', JSON.stringify(updatedFiles));
-      setDecryptedFiles(updatedFiles);
-    }
-  }, [decryptedFiles]);
-
-  // Download a file
-  const downloadFile = (file: StorageItem) => {
-    const a = document.createElement('a');
-    a.href = file.data;
-    a.download = file.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
+
+  // Get encrypted or decrypted files
+  const getEncryptedFiles = () => files.filter(file => file.encrypted);
+  const getDecryptedFiles = () => files.filter(file => !file.encrypted);
 
   return {
-    encryptedFiles,
-    decryptedFiles,
-    addEncryptedFile,
-    addDecryptedFile,
-    deleteEncryptedFile,
-    deleteDecryptedFile,
-    downloadFile,
+    files,
     isLoading,
-    error
+    error,
+    saveFile,
+    deleteFile,
+    getEncryptedFiles,
+    getDecryptedFiles,
   };
 };
+
+export default useFileStorage;

@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/context/AuthContext";
@@ -9,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Search, Download, FileDown, Trash2, Lock, Unlock, DatabaseIcon, AlertCircle, Loader2 } from "lucide-react";
-import { StorageItem, useFileStorage } from "@/hooks/useFileStorage";
+import { FileInfo, useFileStorage } from "@/hooks/useFileStorage";
 
 const Storage = () => {
   const { isAuthenticated } = useAuth();

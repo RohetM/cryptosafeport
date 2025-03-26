@@ -16,6 +16,11 @@ export interface FileInfo {
   data: string; // base64 encoded file data
   encrypted: boolean;
   createdAt: number;
+  fileName?: string; // For compatibility with Storage.tsx
+  algorithm?: string; // For compatibility with Storage.tsx
+  timestamp?: string; // For compatibility with Storage.tsx
+  originalFileName?: string; // For compatibility with Storage.tsx
+  userId?: string; // User who owns this file
 }
 
 export const useFileStorage = () => {
@@ -89,6 +94,7 @@ export const useFileStorage = () => {
         ...fileInfo,
         id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         createdAt: Date.now(),
+        timestamp: new Date().toISOString(), // Add timestamp for compatibility
       };
       
       // Add user ID to the file
@@ -130,6 +136,31 @@ export const useFileStorage = () => {
   // Get encrypted or decrypted files
   const getEncryptedFiles = () => files.filter(file => file.encrypted);
   const getDecryptedFiles = () => files.filter(file => !file.encrypted);
+  
+  // Download a file
+  const downloadFile = (file: FileInfo) => {
+    try {
+      const link = document.createElement('a');
+      link.href = file.data;
+      link.download = file.fileName || file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Error downloading file:', err);
+      throw err instanceof Error ? err : new Error('Failed to download file');
+    }
+  };
+  
+  // For compatibility with Storage.tsx
+  const encryptedFiles = getEncryptedFiles();
+  const decryptedFiles = getDecryptedFiles();
+  const deleteEncryptedFile = deleteFile;
+  const deleteDecryptedFile = deleteFile;
+  const addEncryptedFile = (file: Omit<FileInfo, 'id' | 'createdAt'>) => 
+    saveFile({ ...file, encrypted: true });
+  const addDecryptedFile = (file: Omit<FileInfo, 'id' | 'createdAt'>) => 
+    saveFile({ ...file, encrypted: false });
 
   return {
     files,
@@ -139,6 +170,14 @@ export const useFileStorage = () => {
     deleteFile,
     getEncryptedFiles,
     getDecryptedFiles,
+    // For compatibility with existing components
+    encryptedFiles,
+    decryptedFiles,
+    deleteEncryptedFile,
+    deleteDecryptedFile,
+    downloadFile,
+    addEncryptedFile,
+    addDecryptedFile
   };
 };
 

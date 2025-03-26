@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
@@ -9,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, Upload, Check, Info, Download, FileDown } from "lucide-react";
+import { Lock, Upload, Check, Info, Download, FileDown, Save, Database } from "lucide-react";
+import { useFileStorage } from "@/hooks/useFileStorage";
 
 const Encrypt = () => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const { addEncryptedFile } = useFileStorage();
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [algorithm, setAlgorithm] = useState("aes-256");
@@ -21,6 +22,7 @@ const Encrypt = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [encryptedFileUrl, setEncryptedFileUrl] = useState<string | null>(null);
+  const [fileSaved, setFileSaved] = useState(false);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -34,16 +36,12 @@ const Encrypt = () => {
     }
   };
 
-  // Function to encrypt the file using Web Crypto API
   const encryptFile = async (fileData: ArrayBuffer, password: string): Promise<ArrayBuffer> => {
-    // Convert password to key using PBKDF2
     const enc = new TextEncoder();
     const passwordBuffer = enc.encode(password);
     
-    // Generate a random salt
     const salt = crypto.getRandomValues(new Uint8Array(16));
     
-    // Derive key using PBKDF2
     const keyMaterial = await crypto.subtle.importKey(
       "raw",
       passwordBuffer,
@@ -52,7 +50,6 @@ const Encrypt = () => {
       ["deriveBits", "deriveKey"]
     );
     
-    // Set up AES-GCM parameters
     const key = await crypto.subtle.deriveKey(
       {
         name: "PBKDF2",
@@ -66,10 +63,8 @@ const Encrypt = () => {
       ["encrypt"]
     );
     
-    // Generate IV (Initialization Vector)
     const iv = crypto.getRandomValues(new Uint8Array(12));
     
-    // Encrypt the file
     const encryptedData = await crypto.subtle.encrypt(
       {
         name: "AES-GCM",
@@ -79,7 +74,6 @@ const Encrypt = () => {
       fileData
     );
     
-    // Combine salt + iv + encrypted data for storage
     const result = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
     result.set(salt, 0);
     result.set(iv, salt.length);
@@ -109,20 +103,16 @@ const Encrypt = () => {
       return;
     }
     
-    // Begin encryption process
     setIsProcessing(true);
+    setFileSaved(false);
     
     try {
-      // Read the file
       const fileBuffer = await file.arrayBuffer();
       
-      // Encrypt the file
       const encryptedData = await encryptFile(fileBuffer, password);
       
-      // Create a Blob from the encrypted data
       const encryptedBlob = new Blob([encryptedData], { type: 'application/octet-stream' });
       
-      // Create a URL for the blob
       const url = URL.createObjectURL(encryptedBlob);
       setEncryptedFileUrl(url);
       
@@ -148,22 +138,40 @@ const Encrypt = () => {
   const handleDownload = () => {
     if (!encryptedFileUrl || !file) return;
     
-    // Create an anchor element and set properties for download
     const a = document.createElement('a');
     a.href = encryptedFileUrl;
     a.download = `${file.name}.encrypted`;
     
-    // Append to body, click, and remove
     document.body.appendChild(a);
     a.click();
     
-    // Clean up
     document.body.removeChild(a);
     
     toast({
       title: "Download started",
       description: `${file.name}.encrypted is being downloaded`,
     });
+  };
+
+  const handleSaveToStorage = () => {
+    if (!encryptedFileUrl || !file) return;
+    
+    try {
+      addEncryptedFile(file, encryptedFileUrl, algorithm);
+      setFileSaved(true);
+      
+      toast({
+        title: "File saved to storage",
+        description: `${file.name}.encrypted has been added to your storage`,
+      });
+    } catch (error) {
+      console.error("Error saving to storage:", error);
+      toast({
+        title: "Save failed",
+        description: "Failed to save the file to storage",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -188,7 +196,6 @@ const Encrypt = () => {
         <h1 className="text-3xl font-bold mb-6">File Encryption</h1>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Main encryption form */}
           <div className="md:col-span-2">
             <Card className="glass card-glow">
               <CardHeader>
@@ -199,7 +206,6 @@ const Encrypt = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleEncrypt} className="space-y-6">
-                  {/* File upload area */}
                   <div 
                     className={`border-2 border-dashed rounded-lg p-6 text-center transition-all
                       ${!file ? 'border-muted-foreground/20 hover:border-primary/50' : 'border-primary/50'}`}
@@ -253,7 +259,6 @@ const Encrypt = () => {
                     )}
                   </div>
                   
-                  {/* Encryption settings */}
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="encryption-algorithm">Encryption Algorithm</Label>
@@ -290,7 +295,7 @@ const Encrypt = () => {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="submit"
                       className="flex-1"
@@ -315,10 +320,20 @@ const Encrypt = () => {
                     </Button>
                     
                     {isDone && encryptedFileUrl && (
-                      <Button onClick={handleDownload} variant="outline">
-                        <FileDown className="mr-2 h-4 w-4" />
-                        Download
-                      </Button>
+                      <>
+                        <Button onClick={handleDownload} variant="outline">
+                          <FileDown className="mr-2 h-4 w-4" />
+                          Download
+                        </Button>
+                        <Button 
+                          onClick={handleSaveToStorage} 
+                          variant="outline"
+                          disabled={fileSaved}
+                        >
+                          <Database className="mr-2 h-4 w-4" />
+                          {fileSaved ? "Saved to Storage" : "Save to Storage"}
+                        </Button>
+                      </>
                     )}
                   </div>
                 </form>
@@ -326,7 +341,6 @@ const Encrypt = () => {
             </Card>
           </div>
           
-          {/* Information panel */}
           <div>
             <Card className="glass card-glow">
               <CardHeader>

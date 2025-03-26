@@ -1,192 +1,160 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { Menu, X, User, Lock, Shield, BarChart, LogOut, FileDown, Database } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { 
-  Lock, 
-  Shield, 
-  FileSearch, 
-  LayoutDashboard, 
-  LogOut, 
-  FileDigit, 
-  Menu, 
-  X, 
-  ClipboardList 
-} from "lucide-react";
+import { useMobile } from "@/hooks/use-mobile";
 
 export function Navbar() {
-  const { isAuthenticated, logout } = useAuth();
   const location = useLocation();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  const { isAuthenticated, logout } = useAuth();
+  const isMobile = useMobile();
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Close mobile menu when changing routes
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
-
-  // Close mobile menu when location changes
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
+    setIsOpen(false);
   }, [location]);
-
-  const navLinks = isAuthenticated ? [
-    { name: "Dashboard", path: "/dashboard", icon: <LayoutDashboard className="h-4 w-4 mr-2" /> },
-    { name: "Encrypt", path: "/encrypt", icon: <Lock className="h-4 w-4 mr-2" /> },
-    { name: "Decrypt", path: "/decrypt", icon: <Shield className="h-4 w-4 mr-2" /> },
-    { name: "Scan", path: "/scan", icon: <FileSearch className="h-4 w-4 mr-2" /> },
-    { name: "Logs", path: "/logs", icon: <ClipboardList className="h-4 w-4 mr-2" /> }
-  ] : [];
-
+  
+  // Navbar links for authenticated users
+  const links = [
+    { 
+      name: "Dashboard", 
+      path: "/dashboard", 
+      icon: <BarChart className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+    { 
+      name: "Encrypt", 
+      path: "/encrypt", 
+      icon: <Lock className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+    { 
+      name: "Decrypt", 
+      path: "/decrypt", 
+      icon: <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+    { 
+      name: "Storage", 
+      path: "/storage", 
+      icon: <Database className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+    { 
+      name: "Scan", 
+      path: "/scan", 
+      icon: <FileDown className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+    { 
+      name: "Logs", 
+      path: "/logs", 
+      icon: <BarChart className="h-4 w-4 mr-2" aria-hidden="true" />
+    },
+  ];
+  
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled || isMobileMenuOpen ? "glass shadow-sm" : "bg-transparent"
-      }`}
-    >
-      <div className="container mx-auto px-4 md:px-6">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
-            <Link 
-              to="/" 
-              className="flex items-center space-x-2 text-foreground font-medium"
-            >
-              <FileDigit className="h-6 w-6" />
-              <span className="text-lg font-medium">CryptoSafePort</span>
-            </Link>
-          </div>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-4">
-            {navLinks.map((link) => (
-              <Link
+    <nav className="fixed top-0 w-full bg-background/85 backdrop-blur-md z-50 border-b py-2">
+      <div className="container mx-auto px-4 flex items-center justify-between h-12">
+        {/* Logo and site name */}
+        <Link to="/" className="flex items-center">
+          <Lock className="h-6 w-6 text-primary mr-2" />
+          <span className="font-bold text-lg hidden sm:inline-block">CryptoSafePort</span>
+        </Link>
+        
+        {/* Desktop navigation */}
+        {isAuthenticated && !isMobile && (
+          <div className="hidden md:flex space-x-1">
+            {links.map((link) => (
+              <Button
                 key={link.path}
-                to={link.path}
-                className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors 
-                  ${
-                    location.pathname === link.path
-                      ? "bg-primary/10 text-primary"
-                      : "text-foreground/70 hover:text-foreground hover:bg-accent"
-                  }`}
+                variant={location.pathname === link.path ? "default" : "ghost"}
+                size="sm"
+                asChild
               >
-                {link.icon}
-                {link.name}
-              </Link>
+                <Link to={link.path} className="flex items-center">
+                  {link.icon}
+                  {link.name}
+                </Link>
+              </Button>
             ))}
-            
-            <div className="flex items-center space-x-2 ml-2">
-              <ThemeToggle />
-              
-              {isAuthenticated ? (
-                <Button 
-                  variant="ghost" 
-                  onClick={logout}
-                  className="text-sm font-medium"
+          </div>
+        )}
+        
+        {/* Right-side actions */}
+        <div className="flex items-center space-x-2">
+          <ThemeToggle />
+          
+          {isAuthenticated ? (
+            <>
+              {/* Mobile menu toggle */}
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsOpen(!isOpen)}
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Log Out
+                  {isOpen ? (
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <Menu className="h-5 w-5" aria-hidden="true" />
+                  )}
                 </Button>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Button 
-                    variant="ghost" 
-                    asChild
-                    className="text-sm font-medium"
-                  >
-                    <Link to="/login">Log In</Link>
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    asChild
-                    className="text-sm font-medium"
-                  >
-                    <Link to="/register">Sign Up</Link>
-                  </Button>
-                </div>
               )}
-            </div>
-          </nav>
-
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center space-x-2">
-            <ThemeToggle />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMobileMenu}
-              className="rounded-full w-10 h-10"
+              
+              {/* User and logout (desktop) */}
+              {!isMobile && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={logout}
+                  className="flex items-center"
+                >
+                  <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Logout
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button asChild variant="default" size="sm">
+              <Link to="/login" className="flex items-center">
+                <User className="h-4 w-4 mr-2" aria-hidden="true" />
+                Login
+              </Link>
+            </Button>
+          )}
+        </div>
+      </div>
+      
+      {/* Mobile navigation menu */}
+      {isOpen && isMobile && isAuthenticated && (
+        <div className="md:hidden p-4 pt-0 bg-background border-b">
+          <div className="space-y-1">
+            {links.map((link) => (
+              <Button
+                key={link.path}
+                variant={location.pathname === link.path ? "default" : "ghost"}
+                size="sm"
+                className="w-full justify-start"
+                asChild
+              >
+                <Link to={link.path} className="flex items-center">
+                  {link.icon}
+                  {link.name}
+                </Link>
+              </Button>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="w-full justify-start flex items-center"
             >
-              {isMobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
-              <span className="sr-only">Toggle menu</span>
+              <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
+              Logout
             </Button>
           </div>
         </div>
-      </div>
-
-      {/* Mobile Navigation */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden glass animate-fade-in">
-          <nav className="flex flex-col px-4 py-3 space-y-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`flex items-center px-3 py-3 rounded-md transition-colors ${
-                  location.pathname === link.path
-                    ? "bg-primary/10 text-primary"
-                    : "text-foreground/70 hover:text-foreground hover:bg-accent"
-                }`}
-              >
-                {link.icon}
-                {link.name}
-              </Link>
-            ))}
-            
-            {isAuthenticated ? (
-              <Button 
-                variant="ghost" 
-                onClick={logout}
-                className="justify-start px-3 py-3 h-auto text-foreground/70 hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Log Out
-              </Button>
-            ) : (
-              <div className="flex flex-col space-y-1 pt-2">
-                <Button 
-                  variant="ghost" 
-                  asChild
-                  className="justify-start"
-                >
-                  <Link to="/login">Log In</Link>
-                </Button>
-                <Button 
-                  variant="default" 
-                  asChild
-                >
-                  <Link to="/register">Sign Up</Link>
-                </Button>
-              </div>
-            )}
-          </nav>
-        </div>
       )}
-    </header>
+    </nav>
   );
 }

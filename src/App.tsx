@@ -15,6 +15,7 @@ import Encrypt from "./pages/Encrypt";
 import Decrypt from "./pages/Decrypt";
 import Scan from "./pages/Scan";
 import Logs from "./pages/Logs";
+import Storage from "./pages/Storage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/decrypt" element={<Decrypt />} />
               <Route path="/scan" element={<Scan />} />
               <Route path="/logs" element={<Logs />} />
+              <Route path="/storage" element={<Storage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

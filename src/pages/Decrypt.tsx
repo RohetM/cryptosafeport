@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
@@ -8,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Shield, Upload, Check, Download, AlertCircle, FileDown } from "lucide-react";
+import { Shield, Upload, Check, Download, AlertCircle, FileDown, Database } from "lucide-react";
+import { useFileStorage } from "@/hooks/useFileStorage";
 
 const Decrypt = () => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const { addDecryptedFile } = useFileStorage();
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +21,7 @@ const Decrypt = () => {
   const [error, setError] = useState<string | null>(null);
   const [decryptedFileUrl, setDecryptedFileUrl] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
+  const [fileSaved, setFileSaved] = useState(false);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -34,20 +36,16 @@ const Decrypt = () => {
     }
   };
 
-  // Function to decrypt the file
   const decryptFile = async (encryptedData: ArrayBuffer, password: string): Promise<ArrayBuffer> => {
     try {
-      // Extract salt, iv and encrypted data
       const encryptedArray = new Uint8Array(encryptedData);
       const salt = encryptedArray.slice(0, 16);
       const iv = encryptedArray.slice(16, 16 + 12);
       const data = encryptedArray.slice(16 + 12);
       
-      // Convert password to key material
       const enc = new TextEncoder();
       const passwordBuffer = enc.encode(password);
       
-      // Import key material
       const keyMaterial = await crypto.subtle.importKey(
         "raw",
         passwordBuffer,
@@ -56,7 +54,6 @@ const Decrypt = () => {
         ["deriveBits", "deriveKey"]
       );
       
-      // Derive the key using PBKDF2
       const key = await crypto.subtle.deriveKey(
         {
           name: "PBKDF2",
@@ -70,7 +67,6 @@ const Decrypt = () => {
         ["decrypt"]
       );
       
-      // Decrypt the data
       const decryptedData = await crypto.subtle.decrypt(
         {
           name: "AES-GCM",
@@ -108,29 +104,23 @@ const Decrypt = () => {
       return;
     }
     
-    // Reset states
     setIsSuccess(false);
     setError(null);
     setDecryptedFileUrl(null);
+    setFileSaved(false);
     
-    // Start decryption process
     setIsProcessing(true);
     
     try {
-      // Read the file
       const fileBuffer = await file.arrayBuffer();
       
-      // Decrypt the file
       const decryptedData = await decryptFile(fileBuffer, password);
       
-      // Create a Blob from the decrypted data
       const decryptedBlob = new Blob([decryptedData]);
       
-      // Create a URL for the blob
       const url = URL.createObjectURL(decryptedBlob);
       setDecryptedFileUrl(url);
       
-      // Set original file name (remove .encrypted if present)
       const origName = file.name.endsWith('.encrypted') 
         ? file.name.substring(0, file.name.length - 10) 
         : file.name + '.decrypted';
@@ -160,22 +150,43 @@ const Decrypt = () => {
   const handleDownload = () => {
     if (!decryptedFileUrl || !originalFileName) return;
     
-    // Create an anchor element and set properties for download
     const a = document.createElement('a');
     a.href = decryptedFileUrl;
     a.download = originalFileName;
     
-    // Append to body, click, and remove
     document.body.appendChild(a);
     a.click();
     
-    // Clean up
     document.body.removeChild(a);
     
     toast({
       title: "Download started",
       description: `${originalFileName} is being downloaded`,
     });
+  };
+
+  const handleSaveToStorage = () => {
+    if (!decryptedFileUrl || !originalFileName || !file) return;
+    
+    try {
+      const blobUrl = decryptedFileUrl;
+      const fileSize = file.size;
+      
+      addDecryptedFile(originalFileName, file.name, decryptedFileUrl, fileSize);
+      setFileSaved(true);
+      
+      toast({
+        title: "File saved to storage",
+        description: `${originalFileName} has been added to your storage`,
+      });
+    } catch (error) {
+      console.error("Error saving to storage:", error);
+      toast({
+        title: "Save failed",
+        description: "Failed to save the file to storage",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -210,7 +221,6 @@ const Decrypt = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleDecrypt} className="space-y-6">
-                {/* File upload area */}
                 <div 
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-all
                     ${!file ? 'border-muted-foreground/20 hover:border-primary/50' : 'border-primary/50'}`}
@@ -265,7 +275,6 @@ const Decrypt = () => {
                   )}
                 </div>
                 
-                {/* Password input */}
                 <div className="space-y-2">
                   <Label htmlFor="password">Decryption Password</Label>
                   <Input
@@ -278,7 +287,6 @@ const Decrypt = () => {
                   />
                 </div>
                 
-                {/* Error message */}
                 {error && (
                   <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4 flex items-start">
                     <AlertCircle className="h-5 w-5 text-destructive mr-2 mt-0.5 flex-shrink-0" />
@@ -286,7 +294,6 @@ const Decrypt = () => {
                   </div>
                 )}
                 
-                {/* Success message */}
                 {isSuccess && (
                   <div className="bg-primary/10 border border-primary/20 rounded-md p-4 flex items-start">
                     <Check className="h-5 w-5 text-primary mr-2 mt-0.5 flex-shrink-0" />
@@ -297,7 +304,7 @@ const Decrypt = () => {
                   </div>
                 )}
                 
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="submit"
                     className="flex-1"
@@ -317,10 +324,20 @@ const Decrypt = () => {
                   </Button>
                   
                   {isSuccess && decryptedFileUrl && (
-                    <Button variant="outline" onClick={handleDownload}>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
+                    <>
+                      <Button variant="outline" onClick={handleDownload}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleSaveToStorage}
+                        disabled={fileSaved}
+                      >
+                        <Database className="mr-2 h-4 w-4" />
+                        {fileSaved ? "Saved to Storage" : "Save to Storage"}
+                      </Button>
+                    </>
                   )}
                 </div>
               </form>
@@ -339,7 +356,7 @@ const Decrypt = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-3 w-3 mt-0.5 text-primary flex-shrink-0" />
-                    <span>After successful decryption, download the file to save it to your device</span>
+                    <span>After successful decryption, you can download or save the file to your storage</span>
                   </li>
                 </ul>
               </div>

@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/Layout";
@@ -194,6 +193,51 @@ const Index = () => {
                 </Button>
               </div>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* Project Description Section */}
+      <section className="py-16 px-4 bg-background">
+        <div className="container mx-auto max-w-4xl">
+          <div className="border-t pt-12">
+            <h2 className="text-2xl font-bold mb-6 text-center">About CryptoSafePort</h2>
+            <div className="prose prose-sm max-w-none">
+              <p className="mb-4">
+                CryptoSafePort is a cutting-edge security technology platform, established to address the growing digital security concerns for individuals and organizations. In an increasingly vulnerable online world, we provide powerful yet accessible tools to protect your valuable digital assets.
+              </p>
+              
+              <h3 className="text-xl font-semibold mt-8 mb-4">Our Core Features:</h3>
+              <ul className="space-y-3">
+                <li>
+                  <strong>Military-Grade Encryption:</strong> Protect your sensitive files with industry-standard encryption algorithms, making them unreadable to unauthorized parties.
+                </li>
+                <li>
+                  <strong>Secure Decryption:</strong> Easily retrieve your encrypted files with proper authentication and the correct cryptographic keys.
+                </li>
+                <li>
+                  <strong>Threat Detection:</strong> Scan your files for potential malware, viruses, or security vulnerabilities before they can cause harm.
+                </li>
+                <li>
+                  <strong>Comprehensive Logging:</strong> Maintain detailed audit trails of all security-related activities for compliance and monitoring purposes.
+                </li>
+                <li>
+                  <strong>Secure Storage:</strong> Store your encrypted and decrypted files securely in your browser's protected database for easy access.
+                </li>
+                <li>
+                  <strong>Cross-Platform Compatibility:</strong> Access your secure files across different devices and operating systems without compatibility issues.
+                </li>
+              </ul>
+
+              <h3 className="text-xl font-semibold mt-8 mb-4">Our Mission:</h3>
+              <p>
+                CryptoSafePort focuses on the democratization of cybersecurity by providing intuitive security tools that require no specialized knowledge to operate effectively. We believe everyone deserves access to powerful security solutions, regardless of technical expertise.
+              </p>
+
+              <p className="mt-4">
+                Our name "CryptoSafePort" symbolizes a secure harbor for your digital assets in the turbulent seas of cyber threats. We strive to be your trusted partner in navigating the complex world of digital security.
+              </p>
+            </div>
           </div>
         </div>
       </section>
